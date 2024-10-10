@@ -5,7 +5,8 @@ from catboost import CatBoostRegressor
 
 
 class CatboostModel:
-    
+    """Initialize CatBoost model to forecast timeseries.
+    """
     def __init__(
         self,
         n_splits: int=8,
@@ -26,7 +27,13 @@ class CatboostModel:
         self,
         X: pd.DataFrame,
         y: np.ndarray
-    ) -> tuple:
+    ) -> None:
+        """Fits CatBoost model.
+
+        Args:
+            X (pd.DataFrame): Features DataFrame.
+            y (np.ndarray): Target DataFrame.
+        """
         
         tscv = TimeSeriesSplit(n_splits=self.n_splits)
         
@@ -57,5 +64,13 @@ class CatboostModel:
         self,
         X_test: pd.DataFrame
     ) -> np.ndarray:
+        """Makes predict.
+
+        Args:
+            X_test (pd.DataFrame): Features DataFrame.
+
+        Returns:
+            np.ndarray: predict array.
+        """
         
         return self.model.predict(X_test)
