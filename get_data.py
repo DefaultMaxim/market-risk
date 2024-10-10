@@ -5,7 +5,7 @@ import numpy as np
 # tickers_list = ['AAPL', 'WMT', 'IBM', 'MU', 'BA', 'AXP', 'NVDA', 'AMGN', 'F', 'BP', 'META', 'AMD', 'INTC']
 def get_data(tickers_list: list,
              folder: str = 'data') -> None:
-    """Downloading stocks data and create to folder.
+    """Downloading stocks data and save to folder.
 
     Args:
         tickers_list (list): List of stocks tickers,
