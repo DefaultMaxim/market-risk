@@ -7,15 +7,9 @@ class FeaturesCreate:
     def __init__(
         self,
         data: pd.DataFrame, 
-        # first_obs_day: str,
-        # diff_steps: int = 30,
-        # price_col: str = 'price',
     ):
         
         self.data = data
-        # self.first_obs_day = first_obs_day
-        # self.diff_steps = diff_steps
-        # self.price_col = price_col
     
     
     def add_features(
@@ -33,7 +27,13 @@ class FeaturesCreate:
         self,
         date_col: str = 'Date',
     ) -> pd.DataFrame:
-        """Create mouth features by mouth index.
+        """Create mounth features.
+
+        Args:
+            date_col (str, optional): Date column name. Defaults to 'Date'.
+
+        Returns:
+            pd.DataFrame: New DataFrame with features.
         """
         
         data = self.data.copy()
@@ -56,7 +56,14 @@ class FeaturesCreate:
         diff_steps: int = 30,
         price_col: str = 'portfolio',
     ) -> pd.DataFrame:
-        """Create diff_steps features of price diff.
+        """Creates diff price features.
+
+        Args:
+            diff_steps (int, optional): numbers of steps. Defaults to 30.
+            price_col (str, optional): column name. Defaults to 'portfolio'.
+
+        Returns:
+            pd.DataFrame: DataFrame with features
         """
         
         data = self.data.copy()
