@@ -3,8 +3,10 @@ import yfinance as yf
 import numpy as np
 
 # tickers_list = ['AAPL', 'WMT', 'IBM', 'MU', 'BA', 'AXP', 'NVDA', 'AMGN', 'F', 'BP', 'META', 'AMD', 'INTC']
-def get_data(tickers_list: list,
-             folder: str = 'data') -> None:
+def get_data(
+    tickers_list: list,
+    folder: str = 'data'
+) -> None:
     """Downloading stocks data and save to folder.
 
     Args:
