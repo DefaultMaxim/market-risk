@@ -1,95 +1,65 @@
 import numpy as np
 from scipy.stats import norm, t
-from typing import Callable, Union
+from typing import Callable, Union, Literal
 import pandas as pd
 from numba import jit
-
-class MarketRisk:
-    """Class calculates Value at Risk and Expected shortfoll, base on distribution.
-    """
-    def __init__(
-        self,
-        data: np.ndarray,
-    ) -> None:
-        
-        self.dat: np.ndarray = data
-        self.data_returns: np.ndarray = np.diff(data) / data[1:]
-        
-    def risk_calc(
-        self,
-        distribution: Callable,
-        alpha: float = 0.05,
-        dx: float = 0.0001,
-        horizon: int = 1,
-    ) -> Union[tuple, np.ndarray]:
-        """Calculates VaR and ES by predicted returns.
-
-        Args:
-            distribution (Callable): distribution student or normal.
-            alpha (float, optional): significance level. Defaults to 0.05.
-            dx (float, optional): steps to make linear space. Defaults to 0.0001.
-            horizon (int, optional): horizon to forecast. Defaults to 1.
-
-        Returns:
-            Union[tuple, np.ndarray]: VaR and Expected shortfall
-        """
-        
-        x = np.arange(-1, 1, dx)
-        
-        if distribution == norm:
-            
-            mu, sig = distribution.fit(self.data_returns)
-            
-            self.var = distribution.ppf(1 - alpha)*sig - mu
-            self.es = 1/alpha * distribution.pdf(distribution.ppf(alpha))*sig - mu
-        
-        if distribution == t:
-            
-            nu, mu, sig = distribution.fit(self.data_returns)
-            mu_norm, sig_norm = norm.fit(self.data_returns)
-            xanu = distribution.ppf(alpha, nu)
-            
-            self.var = np.sqrt((nu - 2)/nu) * distribution.ppf(1-alpha, nu)*sig_norm - horizon*mu_norm
-            self.es = -1/alpha * 1/(1 - nu) * (nu - 2 + xanu**2) * distribution.pdf(xanu, nu)*sig_norm - horizon*mu_norm
-            
-        return self.var, self.es
+from arch import arch_model
+import warnings
+warnings.filterwarnings("ignore")
 
 
 @jit(cache=True)
 def calculate_es(
     data: np.ndarray,
-    var: float,
-) -> float:
+    var: Union[float, np.ndarray],
+) -> Union[float, np.ndarray]:
     """
-    Calculates Expected Shorfall.
+    
 
     Args:
-        data (np.ndarray): Prices data.
-        var (float): Value at Risk value.
+        data (np.ndarray): 
+            A DataFrame of prices.
+        alpha (Union[float, np.ndarray]): 
+            Value at risk.
 
     Returns:
-        float: Expected shorfall value.
-        
+        Union[float, np.ndarray]: A list of Expected shorfall.
     """
-    # try to make calc for many vars
+
     data_returns = np.diff(data) / data[1:]
 
-    tail_rets = data_returns[data_returns < var]
-    es = np.mean(tail_rets)
+    es = np.zeros_like(var)
+    
+    for key, val in enumerate(var):
+        
+        tail_rets = data_returns[data_returns < val]
+        
+        #check if tail_rets is empty
+        if len(tail_rets) == 0:
+            
+            # warnings.warn('VaR level is too high. No returns < VaR level.')
+            
+            es[key] = val
+            
+            continue
+        
+        es[key] = np.mean(tail_rets)
         
     return es
 
 
 def historical(
     data: np.ndarray,
-    alpha: float = 0.05,
+    alpha: Union[float, np.ndarray] = np.array([0.05]),
 ) -> np.ndarray:
     """
     The historical method calculate VaR and ES.
 
     Args:
-        data (Union[pd.DataFrame, np.ndarray]): A DataFrame of prices.
-        alpha (float): Significance level (quantile level). Defaults to 0.05.
+        data (np.ndarray): 
+            A DataFrame of prices.
+        alpha (Union[float, np.ndarray]): 
+            Significance level (quantile level). Defaults to np.array([0.05]).
 
     Returns:
         np.ndarray: A list of objects with VaR and ES.
@@ -109,22 +79,26 @@ def historical(
 
 def parametric(
     data: np.ndarray,
-    alpha: float,
-    std: float,
+    alpha: Union[float, np.ndarray],
+    std: Union[float, np.ndarray],
     distribution: Callable = norm,
     **kwargs,
 ) -> np.ndarray:
     """
+    Variance-covariance method. Calculate VaR using mean and variance of TimeSeries data.
     
-
     Args:
-        data (np.ndarray): _description_
-        alpha (float): _description_
-        std (float): _description_
-        distribution (Callable, optional): _description_. Defaults to norm.
+        data (np.ndarray): 
+            A DataFrame of prices.
+        alpha (Union[float, np.ndarray]): 
+            Significance level (quantile level). Defaults to np.array([0.05]).
+        std (Union[float, np.ndarray]): 
+            List of standart deviation.
+        distribution (Callable, optional): 
+            TimeSeries returns distribution from scipy.stats. Defaults to norm.
 
     Returns:
-        np.ndarray: _description_
+        np.ndarray: A list of objects with VaR and ES.
     """
     
     data_returns = np.diff(data) / data[1:]
@@ -138,29 +112,82 @@ def parametric(
     
 def monte_carlo(
     data: np.ndarray,
-    alpha: float,
+    alpha: Union[float, np.ndarray],
     distribution: Callable = norm,
     n_sim: int = 10_000,
     **kwargs
 ) -> np.ndarray:
     """
     
-
+    
     Args:
-        data (np.ndarray): _description_
-        alpha (float): _description_
-        distribution (Callable, optional): _description_. Defaults to norm.
-        n_sim (int, optional): _description_. Defaults to 10_000.
+        data (np.ndarray): 
+            A DataFrame of prices.
+        alpha (Union[float, np.ndarray]): 
+            Significance level (quantile level). Defaults to np.array([0.05]).
+        distribution (Callable, optional): 
+            TimeSeries returns distribution from scipy.stats. Defaults to norm.
+        n_sim (int, optional): 
+            Number of monte-carlo simulations. Defaults to 10_000.
 
     Returns:
-        np.ndarray: _description_
+        np.ndarray: A list of objects with VaR and ES.
     """
+    data_returns = np.diff(data) / data[1:]
     
     sim_returns = distribution.rvs(size=n_sim, **kwargs)
     
     sim_returns = np.sort(sim_returns)
     
-    var = -sim_returns[int(n_sim * (1-alpha))]
-    es = calculate_es(var)
+    var = np.array([-sim_returns[int(n_sim * (1-alpha))]
+           for alpha in alpha])
+    es = calculate_es(data=data_returns, var=var)
     
     return np.concatenate((var, es))
+
+
+def garch(
+    data: np.ndarray,
+    alpha: Union[float, np.ndarray],
+    vol: Literal['GARCH', 'ARCH', 'EGARCH', 'HARCH'] = 'GARCH',
+    p: int = 1,
+    o: int = 0,
+    q: int = 1,
+    distribution: Callable = norm,
+    **kwargs,
+) -> np.ndarray:
+    """
+    
+
+    Args:
+        data (np.ndarray): 
+            A DataFrame of prices.
+        alpha (Union[float, np.ndarray]): 
+            Significance level (quantile level). Defaults to np.array([0.05]).
+        vol (Literal[&#39;GARCH&#39;, &#39;ARCH&#39;, &#39;EGARCH&#39;, &#39;HARCH&#39;], optional): 
+            volatily model. Defaults to 'GARCH'.
+        p (int, optional): 
+            Lag order of the symmetric innovation. Defaults to 1.
+        o (int, optional): 
+            Lag order of the asymmetric innovation. Defaults to 0.
+        q (int, optional): 
+            Lag order of lagged volatility or equivalent. Defaults to 1.
+
+    Returns:
+        np.ndarray: A list of objects with VaR and ES.
+    """
+    data_returns = np.diff(data) / data[1:]
+    
+    # distribution.__class__.__name__[:-4] because in scipy.stats dist named: norm_gen, t_gen and etc.
+    model = arch_model(data_returns, vol=vol, p=p, o=o, q=q, **kwargs)
+    model = model.fit(disp='off', **kwargs)
+    
+    cond_vol = model.conditional_volatility[-1]
+    
+    var = np.array([distribution.ppf(alpha) * cond_vol
+           for alpha in alpha])
+    
+    es = calculate_es(data=data, var=var)
+    
+    return np.concatenate((var, es))
+    
